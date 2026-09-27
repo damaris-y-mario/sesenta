@@ -165,14 +165,15 @@ img { -webkit-user-drag:none; }
 }
 .scroll-cue {
   position:relative; z-index:3;
-  margin-bottom:28px;
-  display:flex; flex-direction:column; align-items:center; gap:4px;
+  margin-bottom:32px;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
   animation:bob 2.2s ease-in-out infinite;
 }
-.scroll-cue svg { width:18px; stroke:var(--brown-light); fill:none; stroke-width:1.5; stroke-linecap:round; }
+.scroll-cue svg { width:32px; stroke:var(--brown-light); fill:none; stroke-width:1.5; stroke-linecap:round; }
 .scroll-cue span {
-  font-family:'AbhayaLibre',serif; font-size:11px;
+  font-family:'AbhayaLibre',serif; font-size:clamp(15px,4.2vw,18px);
   letter-spacing:.14em; color:var(--brown-light); font-style:italic;
+  text-align:center; padding:0 20px;
 }
 @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(7px)} }
 
@@ -187,7 +188,7 @@ img { -webkit-user-drag:none; }
   object-fit:cover; object-position:center 20%;
   position:absolute; top:-37.5%;
   will-change:transform;
-  transition: transform 0.05s linear;
+  transition: transform 0.16s ease-out;
 }
 .story-text {
   background:var(--cream); padding:38px 32px 46px;
@@ -464,7 +465,7 @@ footer p {
 }
 @media (prefers-reduced-motion:reduce) {
   .petal-svg { animation-duration:.01s; }
-  .scroll-cue,.env-hint { animation:none; }
+  .env-hint { animation:none; }
 }
 </style>
 </head>
@@ -687,8 +688,16 @@ mBtn.addEventListener('click', () => {
 // ─── PARALLAX ─────────────────────────────────
 const pImgs = document.querySelectorAll('.par-img');
 
+// Cache the viewport size instead of reading window.innerHeight on every
+// frame: on mobile Chrome the address bar collapses a moment after the
+// user starts scrolling, which changes innerHeight mid-gesture and made
+// the parallax offset suddenly jump ("the image seems to grow/jump").
+// We only refresh this cache on a genuine resize (width change, rotation,
+// or a height change bigger than a toolbar), never on every scroll tick.
+let vh = window.innerHeight;
+let vw = window.innerWidth;
+
 function doParallax() {
-  const vh = window.innerHeight;
   pImgs.forEach(img => {
     const wrap = img.parentElement;
     const rect = wrap.getBoundingClientRect();
@@ -699,6 +708,17 @@ function doParallax() {
     const offset = (progress - 0.5) * factor * rect.height;
     img.style.transform = 'translate3d(0,' + offset + 'px,0)';
   });
+}
+
+function refreshViewport(force) {
+  const newVh = window.innerHeight;
+  const newVw = window.innerWidth;
+  const toolbarJitter = Math.abs(newVh - vh) < 160 && newVw === vw;
+  if (force || !toolbarJitter) {
+    vh = newVh;
+    vw = newVw;
+    doParallax();
+  }
 }
 
 // Some mobile Chrome builds fire very few/late 'scroll' events on window,
@@ -717,13 +737,13 @@ function onScroll() {
 window.addEventListener('scroll', onScroll, {passive: true});
 document.addEventListener('scroll', onScroll, {passive: true});
 window.addEventListener('touchmove', onScroll, {passive: true});
-window.addEventListener('resize', doParallax);
-window.addEventListener('orientationchange', doParallax);
+window.addEventListener('resize', () => refreshViewport(false));
+window.addEventListener('orientationchange', () => refreshViewport(true));
 pImgs.forEach(img => {
   if (img.complete) { doParallax(); }
   else { img.addEventListener('load', doParallax); }
 });
-window.addEventListener('load', doParallax);
+window.addEventListener('load', () => refreshViewport(true));
 requestAnimationFrame(doParallax);
 doParallax();
 
